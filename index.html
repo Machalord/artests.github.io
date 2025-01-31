@@ -7,12 +7,10 @@
         
         <a-box position='0 0.5 0' material='opacity: 0.5;'></a-box>
 
-        <!-- define your gltf asset -->
         <a-assets>
-            <a-asset-item id="tree" scale="0.1 0.1 0.1" position="0 0.5 0" src="./assets/ape.gltf"></a-asset-item>
+            <a-asset-item id="ape" scale="0.1 0.1 0.1" position="0 0.5 0" material='opacity: 0.5;' src="./assets/ape.gltf"></a-asset-item>
         </a-assets>
-        <!-- use your gltf model -->
-        <a-entity gltf-model="##tree"></a-entity>
+        <a-entity gltf-model="##ape"></a-entity>
 
 		<a-marker-camera preset='hiro'></a-marker-camera>
 	</a-scene>
