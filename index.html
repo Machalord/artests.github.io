@@ -6,6 +6,7 @@
     <title>AR Mono</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xrengine/threejs/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/jsm/webxr/ARButton.js"></script>
 </head>
 <body style="margin: 0; overflow: hidden;">
     <script>
@@ -18,20 +19,17 @@
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // Cargar el modelo del mono
+            document.body.appendChild(ARButton.createButton(renderer));
+
             const loader = new THREE.GLTFLoader();
             loader.load('assets/ape.gltf', (gltf) => {
                 monkeyModel = gltf.scene;
-                monkeyModel.scale.set(0.5, 0.5, 0.5); // Ajustar tamaño
+                monkeyModel.scale.set(0.2, 0.2, 0.2); 
             });
 
-            // Configurar WebXR
-            renderer.xr.enabled = true;
-            document.body.appendChild(ARButton.createButton(renderer));
-
-            // Controlador para detectar toques
             controller = renderer.xr.getController(0);
             controller.addEventListener('select', onSelect);
             scene.add(controller);
@@ -42,7 +40,7 @@
         function onSelect() {
             if (monkeyModel) {
                 const clone = monkeyModel.clone();
-                clone.position.set(Math.random() - 0.5, 0, -1); // Posición al frente
+                clone.position.set(0, 0, -1); // Aparece frente a la cámara
                 scene.add(clone);
             }
         }
