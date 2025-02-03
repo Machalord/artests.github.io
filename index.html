@@ -1,18 +1,49 @@
-<!-- AR.js by @jerome_etienne - github: https://github.com/jeromeetienne/ar.js - info: https://medium.com/arjs/augmented-reality-in-10-lines-of-html-4e193ea9fdbf -->
-<script src="https://aframe.io/releases/0.8.0/aframe.min.js"></script>
-<script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.6.0/aframe/build/aframe-ar.js"></script>
-<body style='margin : 0px; overflow: hidden;'>
-	<a-scene embedded arjs='sourceType: webcam;'>
-		
-        
-        <a-box position='0 0.5 0' material='opacity: 0.5;'></a-box>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR Monkey</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+    <script>
+        let scene, camera, renderer;
+        init();
 
-        <a-assets>
-            <a-asset-item id="ape" scale="1 1 1" position="0 0.1 0" material='opacity: 0.5;' src="assets/reticle.gltf"></a-asset-item>
-        </a-assets>
-        <a-entity gltf-model="##ape"></a-entity>
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-		<a-marker-camera preset='hiro'></a-marker-camera>
-	</a-scene>
-</body> 
-      
+            let light = new THREE.HemisphereLight(0xffffff, 0x444444);
+            light.position.set(0, 20, 0);
+            scene.add(light);
+
+            camera.position.z = 3;
+
+            document.addEventListener('click', loadModel);
+            animate();
+        }
+
+        function loadModel(event) {
+            let loader = new THREE.GLTFLoader();
+            loader.load('https://threejs.org/examples/models/gltf/Monkey.glb', function (gltf) {
+                let model = gltf.scene;
+                model.position.set(0, 0, -2);
+                scene.add(model);
+            }, undefined, function (error) {
+                console.error(error);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
