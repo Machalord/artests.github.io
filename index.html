@@ -8,6 +8,9 @@
     <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
+    <button id="startAR" style="position: absolute; top: 10px; left: 10px; z-index: 10;">
+        Iniciar AR
+    </button>
     <script>
         let scene, camera, renderer, controller;
         let monkeyModel = null;
@@ -55,7 +58,7 @@
             }
         }
 
-        startAR(); // Iniciar automáticamente la cámara y la sesión AR
+        document.getElementById("startAR").addEventListener("click", startAR);
     </script>
 </body>
 </html>
