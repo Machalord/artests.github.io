@@ -4,48 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebXR AR Básico</title>
+    <style> body { margin: 0; overflow: hidden; } </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <button id="startAR">Iniciar AR</button>
+    <button id="startAR" style="position: absolute; top: 10px; left: 10px; z-index: 10;">
+        Iniciar AR
+    </button>
     <script>
+        let scene, camera, renderer, controller;
+
         async function startAR() {
-            if (navigator.xr) {
-                try {
-                    const session = await navigator.xr.requestSession("immersive-ar", {
-                        requiredFeatures: ["hit-test"]
-                    });
-
-                    // Creamos un lienzo WebGL para el renderizado
-                    const canvas = document.createElement("canvas");
-                    document.body.appendChild(canvas);
-                    const gl = canvas.getContext("webgl", { xrCompatible: true });
-
-                    // Creamos el renderizador XR
-                    const xrRefSpace = await session.requestReferenceSpace("local");
-                    const viewerSpace = await session.requestReferenceSpace("viewer");
-                    const hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-
-                    const glLayer = new XRWebGLLayer(session, gl);
-                    session.updateRenderState({ baseLayer: glLayer });
-
-                    // Evento de renderizado
-                    session.requestAnimationFrame((time, frame) => {
-                        const pose = frame.getViewerPose(xrRefSpace);
-                        if (pose) {
-                            const hitTestResults = frame.getHitTestResults(hitTestSource);
-                            if (hitTestResults.length > 0) {
-                                const hitPose = hitTestResults[0].getPose(xrRefSpace);
-                                console.log("Objeto debería aparecer en:", hitPose.transform.position);
-                            }
-                        }
-                    });
-
-                } catch (error) {
-                    console.error("Error iniciando WebXR:", error);
-                }
-            } else {
+            if (!navigator.xr) {
                 alert("WebXR no es compatible con este navegador.");
+                return;
             }
+
+            const session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"] });
+
+            // Crear renderizador WebGL con XR habilitado
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Crear escena y cámara
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Luz ambiental
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            scene.add(light);
+
+            // Controlador para detectar toques
+            controller = renderer.xr.getController(0);
+            controller.addEventListener("select", () => placeObject());
+            scene.add(controller);
+
+            // Configurar el espacio XR
+            session.updateRenderState({ baseLayer: new XRWebGLLayer(session, renderer.getContext()) });
+
+            renderer.setAnimationLoop(() => {
+                renderer.render(scene, camera);
+            });
+        }
+
+        function placeObject() {
+            const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.position.set(0, 0, -1); // Aparece frente a la cámara
+            scene.add(cube);
         }
 
         document.getElementById("startAR").addEventListener("click", startAR);
