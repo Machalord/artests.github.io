@@ -20,6 +20,7 @@
           <a class="back" href="./">Back</a>
         </p>
       </details>
+      <div id="fpsCounter" style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0, 0, 0, 0.5); padding: 5px;">FPS: 0</div>
     </header>
     <script type="module">
       import {WebXRButton} from './js/util/webxr-button.js';
@@ -29,7 +30,6 @@
       import {Gltf2Node} from './js/render/nodes/gltf2.js';
       import {DropShadowNode} from './js/render/nodes/drop-shadow.js';
       import {vec3} from './js/render/math/gl-matrix.js';
-      import {Ray} from './js/render/math/ray.js';
 
       // XR globals.
       let xrButton = null;
@@ -54,16 +54,15 @@
       retina.visible = false;
       scene.addNode(retina);
 
-      // Having a really simple drop shadow underneath an object helps ground
-      // it in the world without adding much complexity.
       let shadow = new DropShadowNode();
       vec3.set(shadow.scale, 0.15, 0.15, 0.15);
       arObject.addNode(shadow);
 
       const MAX_APES = 30;
       let apes = [];
+      let lastFrameTime = performance.now();
+      let fpsCounter = document.getElementById('fpsCounter');
 
-      // Ensure the background is transparent for AR.
       scene.clear = false;
 
       function initXR() {
@@ -97,21 +96,13 @@
         session.addEventListener('select', onSelect);
 
         if (!gl) {
-          gl = createWebGLContext({
-            xrCompatible: true
-          });
-
+          gl = createWebGLContext({ xrCompatible: true });
           renderer = new Renderer(gl);
-
           scene.setRenderer(renderer);
         }
 
         session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
 
-        // In this sample we want to cast a ray straight out from the viewer's
-        // position and render a reticle where it intersects with a real world
-        // surface. To do this we first get the viewer space, then create a
-        // hitTestSource that tracks it.
         session.requestReferenceSpace('viewer').then((refSpace) => {
           xrViewerSpace = refSpace;
           session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
@@ -121,7 +112,6 @@
 
         session.requestReferenceSpace('local').then((refSpace) => {
           xrRefSpace = refSpace;
-
           session.requestAnimationFrame(onXRFrame);
         });
       }
@@ -136,63 +126,50 @@
         xrButton.setSession(null);
       }
 
-      // Adds a new object to the scene at the
-      // specified transform.
       function addARObjectAt(matrix) {
         let newApe = arObject.clone();
         newApe.visible = true;
         newApe.matrix = matrix; 
-
         vec3.set(newApe.scale, 0.5, 0.5, 0.5);
         scene.addNode(newApe);
-
         apes.push(newApe);
 
-        // For performance reasons if we add too many objects start
-        // removing the oldest ones to keep the scene complexity
-        // from growing too much.
         if (apes.length > MAX_APES) {
           let oldApe = apes.shift();
           scene.removeNode(oldApe);
         }
       }
 
-      let rayOrigin = vec3.create();
-      let rayDirection = vec3.create();
       function onSelect(event) {
-        if (retina.visible) {
-          // The reticle should already be positioned at the latest hit point, 
-          // so we can just use it's matrix to save an unnecessary call to 
-          // event.frame.getHitTestResults.
+        if (xrHitTestSource && retina.visible) {
           addARObjectAt(retina.matrix);
         }
       }
 
-      // Called every time a XRSession requests that a new frame be drawn.
       function onXRFrame(t, frame) {
         let session = frame.session;
         let pose = frame.getViewerPose(xrRefSpace);
-
         retina.visible = false;
 
-        // If we have a hit test source, get its results for the frame
-        // and use the pose to display a reticle in the scene.
         if (xrHitTestSource && pose) {
           let hitTestResults = frame.getHitTestResults(xrHitTestSource);
           if (hitTestResults.length > 0) {
-            let pose = hitTestResults[0].getPose(xrRefSpace);
+            let hitPose = hitTestResults[0].getPose(xrRefSpace);
             retina.visible = true;
-            retina.matrix = pose.transform.matrix;
+            retina.matrix = hitPose.transform.matrix;
           }
         }
 
         scene.startFrame();
-
         session.requestAnimationFrame(onXRFrame);
-
         scene.drawXRFrame(frame, pose);
-
         scene.endFrame();
+
+        // Calcular y mostrar FPS
+        let currentTime = performance.now();
+        let fps = Math.round(1000 / (currentTime - lastFrameTime));
+        lastFrameTime = currentTime;
+        fpsCounter.innerText = `FPS: ${fps}`;
       }
 
       // Start the XR application.
