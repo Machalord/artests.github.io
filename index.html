@@ -61,7 +61,7 @@
       const MAX_APES = 30;
       let apes = [];
       let lastFrameTime = performance.now();
-      let fpsCounter = document.getElementById('fpsCounter');
+      let fpsCounter; // Declarar aquí, pero inicializar después
 
       scene.clear = false;
 
@@ -74,6 +74,9 @@
           textExitXRTitle: "EXIT  AR",
         });
         document.querySelector('header').appendChild(xrButton.domElement);
+
+        // Inicializar fpsCounter después de que se haya agregado al DOM
+        fpsCounter = document.getElementById('fpsCounter');
 
         if (navigator.xr) {
           navigator.xr.isSessionSupported('immersive-ar')
