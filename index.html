@@ -47,7 +47,7 @@
       arObject.visible = false;
       scene.addNode(arObject);
 
-      let ape = new Gltf2Node({url: 'assets/ape.glb'});
+      let ape = new Gltf2Node({url: 'assets/Australophitecus3.glb'});
       arObject.addNode(ape);
 
       let retina = new Gltf2Node({url: 'assets/reticle.gltf'});
@@ -141,11 +141,7 @@
       function addARObjectAt(matrix) {
         let newApe = arObject.clone();
         newApe.visible = true;
-        newApe.matrix = matrix;
-
-        let rotationMatrix = mat4.create();
-        mat4.rotateY(rotationMatrix, rotationMatrix, Math.PI / 2); // 90 grados en radianes
-        mat4.multiply(newApe.matrix, rotationMatrix, newApe.matrix);
+        newApe.matrix = matrix; 
 
         vec3.set(newApe.scale, 0.5, 0.5, 0.5);
         scene.addNode(newApe);
