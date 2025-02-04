@@ -142,6 +142,11 @@
         let newApe = arObject.clone();
         newApe.visible = true;
         newApe.matrix = matrix;
+
+        let rotationMatrix = mat4.create();
+        mat4.rotateY(rotationMatrix, rotationMatrix, Math.PI / 2); // 90 grados en radianes
+        mat4.multiply(newApe.matrix, rotationMatrix, newApe.matrix);
+
         vec3.set(newApe.scale, 0.5, 0.5, 0.5);
         scene.addNode(newApe);
 
