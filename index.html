@@ -20,8 +20,8 @@
           <a class="back" href="./">Back</a>
         </p>
       </details>
-      <div id="fpsCounter" style="position: absolute; top: 10px; left: 10px; color: white; background: rgba(0, 0, 0, 0.5); padding: 5px;">FPS: 0</div>
     </header>
+    <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
     <script type="module">
       import {WebXRButton} from './js/util/webxr-button.js';
       import {Scene} from './js/render/scenes/scene.js';
@@ -47,6 +47,7 @@
       arObject.visible = false;
       scene.addNode(arObject);
 
+      // Cargar el modelo del mono con animaciones
       let ape = new Gltf2Node({url: 'assets/Australophitecus3.glb'});
       arObject.addNode(ape);
 
@@ -62,6 +63,7 @@
       let apes = [];
       let lastFrameTime = performance.now();
       let fpsCounter; // Declarar aquí, pero inicializar después
+      let isFpsVisible = true; // Variable para controlar la visibilidad del FPS
 
       scene.clear = false;
 
@@ -137,6 +139,11 @@
         scene.addNode(newApe);
         apes.push(newApe);
 
+        // Iniciar la animación del mono si tiene animaciones
+        if (ape.animations && ape.animations.length > 0) {
+          newApe.playAnimation(ape.animations[0]); // Reproducir la primera animación
+        }
+
         if (apes.length > MAX_APES) {
           let oldApe = apes.shift();
           scene.removeNode(oldApe);
@@ -172,7 +179,14 @@
         let currentTime = performance.now();
         let fps = Math.round(1000 / (currentTime - lastFrameTime));
         lastFrameTime = currentTime;
-        fpsCounter.innerText = `FPS: ${fps}`;
+
+        // Mostrar u ocultar el contador de FPS según la variable
+        if (isFpsVisible) {
+          fpsCounter.innerText = `FPS: ${fps}`;
+          fpsCounter.style.display = 'block'; // Asegúrate de que esté visible
+        } else {
+          fpsCounter.style.display = 'none'; // Ocultar el contador
+        }
       }
 
       // Start the XR application.
