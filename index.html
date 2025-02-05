@@ -149,11 +149,7 @@
       newApe.matrix = matrix;
       vec3.set(newApe.scale, 0.5, 0.5, 0.5);
       scene.addNode(newApe);
-    }
-
-    document.getElementById('startAR').addEventListener('click', () => {
-      onRequestSession();
-    });
+    } 
 
     async function startApp() {
       await preloadModels();
