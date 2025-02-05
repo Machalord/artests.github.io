@@ -84,9 +84,7 @@
     let apeModelUrl = 'assets/Australophitecus3_anim.glb';
     let ape = null;
     const retinaModelUrl = 'assets/reticle.gltf';
-    let reticleNode = new Gltf2Node({ url: retinaModelUrl });
-    reticleNode.visible = false;
-    scene.addNode(reticleNode);
+    let reticleNode = null;
 
     let shadow = new DropShadowNode();
     vec3.set(shadow.scale, 0.15, 0.15, 0.15);
@@ -100,21 +98,20 @@
 
     async function preloadModels() {
       let progressBar = document.getElementById('progressBar');
-      let models = [apeModelUrl, retinaModelUrl];
       let loaded = 0;
+      const totalModels = 2;
 
-      let modelPromises = models.map(async (url) => {
-        let model = await Gltf2Node.load(url);
-        loaded++;
-        progressBar.style.width = `${(loaded / models.length) * 100}%`;
-        return model;
-      });
-
-      [ape, reticleNode] = await Promise.all(modelPromises);
+      ape = new Gltf2Node({ url: apeModelUrl });
       ape.visible = false;
       arObject.addNode(ape);
+      loaded++;
+      progressBar.style.width = `${(loaded / totalModels) * 100}%`;
+
+      reticleNode = new Gltf2Node({ url: retinaModelUrl });
       reticleNode.visible = false;
       scene.addNode(reticleNode);
+      loaded++;
+      progressBar.style.width = `${(loaded / totalModels) * 100}%`;
 
       document.getElementById('loadingScreen').style.display = 'none';
     }
