@@ -86,7 +86,6 @@
     let ape = null;
     const retinaModelUrl = 'assets/reticle.gltf';
     let reticleNode = null;
-
     let shadow = new DropShadowNode();
     vec3.set(shadow.scale, 0.15, 0.15, 0.15);
     arObject.addNode(shadow);
@@ -124,20 +123,28 @@
 
     function onRequestSession() {
       navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-        .then(onSessionStarted)
+        .then(session => {
+          session.addEventListener('select', onSelect);
+          session.requestReferenceSpace('local').then(refSpace => {
+            xrRefSpace = refSpace;
+            session.requestAnimationFrame(onXRFrame);
+          });
+        })
         .catch(error => console.error("Error al iniciar sesión XR:", error));
     }
 
-    function onSessionStarted(session) {
-      session.addEventListener('end', onSessionEnded);
+    function onSelect(event) {
+      if (xrHitTestSource && reticleNode.visible) {
+        addARObjectAt(reticleNode.matrix);
+      }
     }
 
-    function onEndSession(session) {
-      session.end();
-    }
-
-    function onSessionEnded() {
-      xrButton.setSession(null);
+    function addARObjectAt(matrix) {
+      let newApe = arObject.clone();
+      newApe.visible = true;
+      newApe.matrix = matrix;
+      vec3.set(newApe.scale, 0.5, 0.5, 0.5);
+      scene.addNode(newApe);
     }
 
     document.getElementById('startAR').addEventListener('click', () => {
