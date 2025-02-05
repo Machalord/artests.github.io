@@ -55,6 +55,7 @@
         <a class="back" href="./">Volver</a>
       </p>
     </details>
+    <button id="startAR">INICIAR AR</button>
   </header>
   <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
   
@@ -110,13 +111,6 @@
       document.getElementById('loadingScreen').style.display = 'none';
     }
 
-    async function startApp() {
-      await preloadModels();
-      initXR();
-      navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-        .then(onSessionStarted);
-    }
-
     function initXR() {
       xrButton = new WebXRButton({
         onRequestSession: onRequestSession,
@@ -130,7 +124,8 @@
 
     function onRequestSession() {
       navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-        .then(onSessionStarted);
+        .then(onSessionStarted)
+        .catch(error => console.error("Error al iniciar sesión XR:", error));
     }
 
     function onSessionStarted(session) {
@@ -143,6 +138,15 @@
 
     function onSessionEnded() {
       xrButton.setSession(null);
+    }
+
+    document.getElementById('startAR').addEventListener('click', () => {
+      onRequestSession();
+    });
+
+    async function startApp() {
+      await preloadModels();
+      initXR();
     }
 
     startApp();
