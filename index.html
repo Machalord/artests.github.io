@@ -54,8 +54,7 @@
         Este ejemplo muestra el uso de hit testing para colocar simios virtuales sobre superficies del mundo real.
         <a class="back" href="./">Volver</a>
       </p>
-    </details>
-    <button id="startAR">INICIAR AR</button>
+    </details> 
   </header>
   <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
   
@@ -121,27 +120,67 @@
       document.querySelector('header').appendChild(xrButton.domElement);
     }
 
+    if (navigator.xr) {
+          navigator.xr.isSessionSupported('immersive-ar')
+                      .then((supported) => {
+            xrButton.enabled = supported;
+          });
+        }
+
     function onRequestSession() {
       navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
         .then(session => {
-          session.addEventListener('select', onSelect);
-          session.requestReferenceSpace('local').then(refSpace => {
-            xrRefSpace = refSpace;
+          xrButton.setSession(session);
+          onSessionStarted(session); 
             session.requestAnimationFrame(onXRFrame);
-          });
-        })
-        .catch(error => console.error("Error al iniciar sesión XR:", error));
+          }); 
     }
 
-    function onSelect(event) {
-      if (xrHitTestSource && reticleNode.visible) {
-        addARObjectAt(reticleNode.matrix);
+    function onSessionStarted(session) {
+        session.addEventListener('end', onSessionEnded);
+        session.addEventListener('select', onSelect);
+
+        if (!gl) {
+          gl = createWebGLContext({
+            xrCompatible: true
+          });
+
+          renderer = new Renderer(gl);
+
+          scene.setRenderer(renderer);
+        }
+
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+        // In this sample we want to cast a ray straight out from the viewer's
+        // position and render a reticle where it intersects with a real world
+        // surface. To do this we first get the viewer space, then create a
+        // hitTestSource that tracks it.
+        session.requestReferenceSpace('viewer').then((refSpace) => {
+          xrViewerSpace = refSpace;
+          session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
+            xrHitTestSource = hitTestSource;
+          });
+        });
+
+        session.requestReferenceSpace('local').then((refSpace) => {
+          xrRefSpace = refSpace;
+
+          session.requestAnimationFrame(onXRFrame);
+        });
       }
-    } 
+
     
+
     function onEndSession(session) {
-      session.end();
-    }
+        xrHitTestSource.cancel();
+        xrHitTestSource = null;
+        session.end();
+      }
+
+      function onSessionEnded(event) {
+        xrButton.setSession(null);
+      }
 
     function addARObjectAt(matrix) {
       let newApe = arObject.clone();
@@ -150,6 +189,46 @@
       vec3.set(newApe.scale, 0.5, 0.5, 0.5);
       scene.addNode(newApe);
     } 
+
+    let rayOrigin = vec3.create();
+    let rayDirection = vec3.create();
+
+      function onSelect(event) {
+        if (reticle.visible) {
+          // The reticle should already be positioned at the latest hit point, 
+          // so we can just use it's matrix to save an unnecessary call to 
+          // event.frame.getHitTestResults.
+
+          addARObjectAt(reticle.matrix);
+        }
+      }
+
+       // Called every time a XRSession requests that a new frame be drawn.
+       function onXRFrame(t, frame) {
+        let session = frame.session;
+        let pose = frame.getViewerPose(xrRefSpace);
+
+        reticle.visible = false;
+
+        // If we have a hit test source, get its results for the frame
+        // and use the pose to display a reticle in the scene.
+        if (xrHitTestSource && pose) {
+          let hitTestResults = frame.getHitTestResults(xrHitTestSource);
+          if (hitTestResults.length > 0) {
+            let pose = hitTestResults[0].getPose(xrRefSpace);
+            reticle.visible = true;
+            reticle.matrix = pose.transform.matrix;
+          }
+        }
+
+        scene.startFrame();
+
+        session.requestAnimationFrame(onXRFrame);
+
+        scene.drawXRFrame(frame, pose);
+
+        scene.endFrame();
+      }
 
     async function startApp() {
       await preloadModels();
