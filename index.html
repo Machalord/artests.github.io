@@ -1,196 +1,258 @@
-<!doctype html> 
-<html>
-  <head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
-    <meta name='mobile-web-app-capable' content='yes'>
-    <meta name='apple-mobile-web-app-capable' content='yes'>
-    <link rel='icon' type='image/png' sizes='32x32' href='favicon-32x32.png'>
-    <link rel='icon' type='image/png' sizes='96x96' href='favicon-96x96.png'>
-    <link rel='stylesheet' href='css/common.css'>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+  <meta name='mobile-web-app-capable' content='yes'>
+  <meta name='apple-mobile-web-app-capable' content='yes'>
+  <link rel='icon' type='image/png' sizes='32x32' href='favicon-32x32.png'>
+  <link rel='icon' type='image/png' sizes='96x96' href='favicon-96x96.png'>
+  <link rel='stylesheet' href='css/common.css'>
 
-    <title>Monkey Hit Test</title>
-  </head>
-  <body>
-    <header>
-      <details open>
-        <summary>Monkey Hit Test</summary>
-        <p>
-          This sample demonstrates the use of hit testing to place virtual apes on real-world surfaces.
-          <a class="back" href="./">Back</a>
-        </p>
-      </details>
-    </header>
+  <title>Monkey Hit Test</title>
+</head>
+<body>
+  <header>
+    <details open>
+      <summary>Monkey Hit Test</summary>
+      <p>This sample demonstrates the use of hit testing to place virtual apes on real-world surfaces.
+        <a class="back" href="./">Back</a>
+      </p>
+    </details>
+    <!-- Placeholder for loading indicator -->
+    <div id="loadingIndicator" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; display: none;">Loading...</div>
     <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
-    <script type="module">
-      import {WebXRButton} from './js/util/webxr-button.js';
-      import {Scene} from './js/render/scenes/scene.js';
-      import {Renderer, createWebGLContext} from './js/render/core/renderer.js';
-      import {Node} from './js/render/core/node.js';
-      import {Gltf2Node} from './js/render/nodes/gltf2.js';
-      import {DropShadowNode} from './js/render/nodes/drop-shadow.js';
-      import {vec3} from './js/render/math/gl-matrix.js';
+  </header>
 
-      // XR globals.
-      let xrButton = null;
-      let xrRefSpace = null;
-      let xrViewerSpace = null;
-      let xrHitTestSource = null;
+  <script type="module">
+    import { WebXRButton } from './js/util/webxr-button.js';
+    import { Scene } from './js/render/scenes/scene.js';
+    import { Renderer, createWebGLContext } from './js/render/core/renderer.js';
+    import { Node } from './js/render/core/node.js';
+    import { Gltf2Node } from './js/render/nodes/gltf2.js';
+    import { DropShadowNode } from './js/render/nodes/drop-shadow.js';
+    import { vec3 } from './js/render/math/gl-matrix.js';
 
-      // WebGL scene globals.
-      let gl = null;
-      let renderer = null;
-      let scene = new Scene();
-      scene.enableStats(false);
+    // XR globals.
+    let xrButton = null;
+    let xrRefSpace = null;
+    let xrViewerSpace = null;
+    let xrHitTestSource = null;
 
-      let arObject = new Node();
-      arObject.visible = false;
-      scene.addNode(arObject);
+    // WebGL scene globals.
+    let gl = null;
+    let renderer = null;
+    let scene = new Scene();
+    scene.enableStats(false);
 
-      // Cargar el modelo del mono con animaciones
-      let ape = new Gltf2Node({url: 'assets/Australophitecus3.glb'});
-      arObject.addNode(ape);
+    let arObject = new Node();
+    arObject.visible = false;
+    scene.addNode(arObject);
 
-      let retina = new Gltf2Node({url: 'assets/reticle.gltf'});
-      retina.visible = false;
-      scene.addNode(retina);
+    // Cargar el modelo del mono con animaciones
+    let ape = null;
+    const apeUrl = 'assets/Australophitecus3.glb';
 
-      let shadow = new DropShadowNode();
-      vec3.set(shadow.scale, 0.15, 0.15, 0.15);
-      arObject.addNode(shadow);
+    // Cargar la retícula (reticle)
+    const retinaUrl = 'assets/reticle.gltf';
 
-      const MAX_APES = 30;
-      let apes = [];
-      let lastFrameTime = performance.now();
-      let fpsCounter; // Declarar aquí, pero inicializar después
-      let isFpsVisible = true; // Variable para controlar la visibilidad del FPS
+    // Contador de FPS y variable para controlar la visibilidad del contador
+    let lastFrameTime = performance.now();
+    let fpsCounter; // Declarar aquí, pero inicializar después
+    let isFpsVisible = true; // Variable para controlar la visibilidad del FPS
 
-      scene.clear = false;
+    const MAX_APES = 30;
+    let apes = [];
+    let loadingComplete = false;
 
-      function initXR() {
-        xrButton = new WebXRButton({
-          onRequestSession: onRequestSession,
-          onEndSession: onEndSession,
-          textEnterXRTitle: "START AR",
-          textXRNotFoundTitle: "AR NOT FOUND",
-          textExitXRTitle: "EXIT  AR",
-        });
-        document.querySelector('header').appendChild(xrButton.domElement);
+    function initXR() {
+      xrButton = new WebXRButton({
+        onRequestSession: onRequestSession,
+        onEndSession: onEndSession,
+        textEnterXRTitle: "START AR",
+        textXRNotFoundTitle: "AR NOT FOUND",
+        textExitXRTitle: "EXIT  AR",
+      });
+      document.querySelector('header').appendChild(xrButton.domElement);
 
-        // Inicializar fpsCounter después de que se haya agregado al DOM
-        fpsCounter = document.getElementById('fpsCounter');
+      // Inicializar fpsCounter después de que se haya agregado al DOM
+      fpsCounter = document.getElementById('fpsCounter');
 
-        if (navigator.xr) {
-          navigator.xr.isSessionSupported('immersive-ar')
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-ar')
                       .then((supported) => {
             xrButton.enabled = supported;
           });
-        }
       }
 
-      function onRequestSession() {
-        return navigator.xr.requestSession('immersive-ar', {requiredFeatures: ['local', 'hit-test']})
-                           .then((session) => {
-          xrButton.setSession(session);
+      // Cargar los modelos y la retícula antes de iniciar la sesión XR
+      loadModelsAndReticle().then(() => {
+        initLoadingIndicator(false);
+        initXRSession();
+      });
+    }
+
+    function loadModelsAndReticle() {
+      return Promise.all([
+        loadModel(apeUrl),
+        loadModel(retinaUrl)
+      ]).then((results) => {
+        ape = results[0];
+        const retina = results[1];
+        arObject.addNode(new Gltf2Node({ url: retina }));
+        reticleNode = retina;
+        return true; // Indicar que la carga está completa
+      }).catch((error) => {
+        console.error('Error loading models:', error);
+        initLoadingIndicator(true); // Mostrar mensaje de error
+        return false;
+      });
+    }
+
+    function loadModel(url) {
+      return new Promise((resolve, reject) => {
+        const gltfLoader = new GLTFLoader();
+        gltfLoader.load(url, (gltf) => {
+          resolve(gltf.scene);
+        }, undefined, (error) => {
+          reject(error);
+        });
+      });
+    }
+
+    function initLoadingIndicator(isFailed) {
+      const loadingIndicator = document.getElementById('loadingIndicator');
+      if (isFailed) {
+        loadingIndicator.innerText = 'Error loading models. Please try again.';
+      } else {
+        loadingIndicator.innerText = 'Loading...';
+      }
+      loadingIndicator.style.display = isFpsVisible ? 'block' : 'none';
+    }
+
+    function initXRSession() {
+      return new Promise((resolve, reject) => {
+        xrButton.onRequestSession = (session) => {
           onSessionStarted(session);
-        });
-      }
+          resolve(true);
+        };
 
-      function onSessionStarted(session) {
-        session.addEventListener('end', onSessionEnded);
-        session.addEventListener('select', onSelect);
+        xrButton.onEndSession = () => {
+          onEndSession(session);
+          reject();
+        };
+      });
+    }
 
-        if (!gl) {
-          gl = createWebGLContext({ xrCompatible: true });
-          renderer = new Renderer(gl);
-          scene.setRenderer(renderer);
-        }
-
-        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
-
-        session.requestReferenceSpace('viewer').then((refSpace) => {
-          xrViewerSpace = refSpace;
-          session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
-            xrHitTestSource = hitTestSource;
+    function onRequestSession() {
+      return navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
+                         .then((session) => {
+            xrButton.setSession(session);
+            onSessionStarted(session);
           });
+    }
+
+    function onSessionStarted(session) {
+      session.addEventListener('end', onSessionEnded);
+      session.addEventListener('select', onSelect);
+
+      if (!gl) {
+        gl = createWebGLContext({ xrCompatible: true });
+        renderer = new Renderer(gl);
+        scene.setRenderer(renderer);
+      }
+
+      session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+      session.requestReferenceSpace('viewer').then((refSpace) => {
+        xrViewerSpace = refSpace;
+        session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
+          xrHitTestSource = hitTestSource;
         });
+      });
 
-        session.requestReferenceSpace('local').then((refSpace) => {
-          xrRefSpace = refSpace;
-          session.requestAnimationFrame(onXRFrame);
-        });
-      }
-
-      function onEndSession(session) {
-        xrHitTestSource.cancel();
-        xrHitTestSource = null;
-        session.end();
-      }
-
-      function onSessionEnded(event) {
-        xrButton.setSession(null);
-      }
-
-      function addARObjectAt(matrix) {
-        let newApe = arObject.clone();
-        newApe.visible = true;
-        newApe.matrix = matrix; 
-        vec3.set(newApe.scale, 0.5, 0.5, 0.5);
-        scene.addNode(newApe);
-        apes.push(newApe);
-
-        // Iniciar la animación del mono si tiene animaciones
-        if (ape.animations && ape.animations.length > 0) {
-          newApe.playAnimation(ape.animations[0]); // Reproducir la primera animación
-        }
-
-        if (apes.length > MAX_APES) {
-          let oldApe = apes.shift();
-          scene.removeNode(oldApe);
-        }
-      }
-
-      function onSelect(event) {
-        if (xrHitTestSource && retina.visible) {
-          addARObjectAt(retina.matrix);
-        }
-      }
-
-      function onXRFrame(t, frame) {
-        let session = frame.session;
-        let pose = frame.getViewerPose(xrRefSpace);
-        retina.visible = false;
-
-        if (xrHitTestSource && pose) {
-          let hitTestResults = frame.getHitTestResults(xrHitTestSource);
-          if (hitTestResults.length > 0) {
-            let hitPose = hitTestResults[0].getPose(xrRefSpace);
-            retina.visible = true;
-            retina.matrix = hitPose.transform.matrix;
-          }
-        }
-
-        scene.startFrame();
+      session.requestReferenceSpace('local').then((refSpace) => {
+        xrRefSpace = refSpace;
         session.requestAnimationFrame(onXRFrame);
-        scene.drawXRFrame(frame, pose);
-        scene.endFrame();
+      });
 
-        // Calcular y mostrar FPS
-        let currentTime = performance.now();
-        let fps = Math.round(1000 / (currentTime - lastFrameTime));
-        lastFrameTime = currentTime;
+      loadingComplete = true; // Indicar que la experiencia está habilitada
+    }
 
-        // Mostrar u ocultar el contador de FPS según la variable
-        if (isFpsVisible) {
-          fpsCounter.innerText = `FPS: ${fps}`;
-          fpsCounter.style.display = 'block'; // Asegúrate de que esté visible
-        } else {
-          fpsCounter.style.display = 'none'; // Ocultar el contador
+    function onEndSession(session) {
+      xrHitTestSource.cancel();
+      xrHitTestSource = null;
+      session.end();
+    }
+
+    function onSessionEnded(event) {
+      xrButton.setSession(null);
+    }
+
+    function addARObjectAt(matrix) {
+      let newApe = arObject.clone();
+      newApe.visible = true;
+      newApe.matrix = matrix; 
+      vec3.set(newApe.scale, 0.5, 0.5, 0.5);
+      scene.addNode(newApe);
+      apes.push(newApe);
+
+      // Iniciar la animación del mono si tiene animaciones
+      if (ape.animations && ape.animations.length > 0) {
+        newApe.playAnimation(ape.animations[0]); // Reproducir la primera animación
+      }
+
+      if (apes.length > MAX_APES) {
+        let oldApe = apes.shift();
+        scene.removeNode(oldApe);
+      }
+    }
+
+    function onSelect(event) {
+      if (xrHitTestSource && reticleNode.visible) {
+        addARObjectAt(reticleNode.matrix);
+      }
+    }
+
+    function onXRFrame(t, frame) {
+      let session = frame.session;
+      let pose = frame.getViewerPose(xrRefSpace);
+      reticleNode.visible = false;
+
+      if (xrHitTestSource && pose) {
+        let hitTestResults = frame.getHitTestResults(xrHitTestSource);
+        if (hitTestResults.length > 0) {
+          let hitPose = hitTestResults[0].getPose(xrRefSpace);
+          reticleNode.visible = true;
+          reticleNode.matrix = hitPose.transform.matrix;
         }
       }
 
-      // Start the XR application.
-      initXR();
-    </script>
-  </body>
-</html>
+      scene.startFrame();
+      session.requestAnimationFrame(onXRFrame);
+      scene.drawXRFrame(frame, pose);
+      scene.endFrame();
+
+      // Calcular y mostrar FPS
+      let currentTime = performance.now();
+      let fps = Math.round(1000 / (currentTime - lastFrameTime));
+      lastFrameTime = currentTime;
+
+      if (!loadingComplete) {
+        return; // No mostrar el contador de FPS si aún no se ha completado la carga
+      }
+
+      // Mostrar u ocultar el contador de FPS según la variable
+      if (isFpsVisible) {
+        fpsCounter.innerText = `FPS: ${fps}`;
+        fpsCounter.style.display = 'block'; // Asegúrate de que esté visible
+      } else {
+        fpsCounter.style.display = 'none'; // Ocultar el contador
+      }
+    }
+
+    // Start the XR application.
+    initXR();
+  </script>
+</body>
+</html> 
