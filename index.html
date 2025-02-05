@@ -137,6 +137,10 @@
       if (xrHitTestSource && reticleNode.visible) {
         addARObjectAt(reticleNode.matrix);
       }
+    } 
+    
+    function onEndSession(session) {
+      session.end();
     }
 
     function addARObjectAt(matrix) {
