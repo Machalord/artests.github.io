@@ -90,12 +90,6 @@
     vec3.set(shadow.scale, 0.15, 0.15, 0.15);
     arObject.addNode(shadow);
 
-    const MAX_APES = 30;
-    let apes = [];
-    let lastFrameTime = performance.now();
-    let fpsCounter;
-    let isFpsVisible = true;
-
     async function preloadModels() {
       let progressBar = document.getElementById('progressBar');
       let loaded = 0;
@@ -121,6 +115,34 @@
       initXR();
       navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
         .then(onSessionStarted);
+    }
+
+    function initXR() {
+      xrButton = new WebXRButton({
+        onRequestSession: onRequestSession,
+        onEndSession: onEndSession,
+        textEnterXRTitle: "INICIAR AR",
+        textXRNotFoundTitle: "NO SE ENCUENTRA AR",
+        textExitXRTitle: "SALIR DE AR"
+      });
+      document.querySelector('header').appendChild(xrButton.domElement);
+    }
+
+    function onRequestSession() {
+      navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
+        .then(onSessionStarted);
+    }
+
+    function onSessionStarted(session) {
+      session.addEventListener('end', onSessionEnded);
+    }
+
+    function onEndSession(session) {
+      session.end();
+    }
+
+    function onSessionEnded() {
+      xrButton.setSession(null);
     }
 
     startApp();
