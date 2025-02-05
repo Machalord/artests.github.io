@@ -10,8 +10,43 @@
   <link rel='stylesheet' href='css/common.css'>
 
   <title>Monkey Hit Test</title>
+  <style>
+    #loadingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #progressBarContainer {
+      width: 80%;
+      background: gray;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    #progressBar {
+      width: 0%;
+      height: 20px;
+      background: lime;
+    }
+  </style>
 </head>
 <body>
+  <div id="loadingScreen">
+    <p>Cargando modelos...</p>
+    <div id="progressBarContainer">
+      <div id="progressBar"></div>
+    </div>
+  </div>
+  
   <header>
     <details open>
       <summary>Monkey Hit Test</summary>
@@ -32,13 +67,11 @@
     import { DropShadowNode } from './js/render/nodes/drop-shadow.js';
     import { vec3 } from './js/render/math/gl-matrix.js';
 
-    // XR globals.
     let xrButton = null;
     let xrRefSpace = null;
     let xrViewerSpace = null;
     let xrHitTestSource = null;
 
-    // WebGL scene globals.
     let gl = null;
     let renderer = null;
     let scene = new Scene();
@@ -48,11 +81,8 @@
     arObject.visible = false;
     scene.addNode(arObject);
 
-    // Cargar el modelo del mono con animaciones
     let apeModelUrl = 'assets/Australophitecus3_anim.glb';
     let ape = null;
-
-    // Modelo de retículo
     const retinaModelUrl = 'assets/reticle.gltf';
     let reticleNode = new Gltf2Node({ url: retinaModelUrl });
     reticleNode.visible = false;
@@ -65,168 +95,35 @@
     const MAX_APES = 30;
     let apes = [];
     let lastFrameTime = performance.now();
-    let fpsCounter; // Declarar aquí, pero inicializar después
-    let isFpsVisible = true; // Variable para controlar la visibilidad del FPS
+    let fpsCounter;
+    let isFpsVisible = true;
 
-    scene.clear = false;
+    async function preloadModels() {
+      let progressBar = document.getElementById('progressBar');
+      let models = [apeModelUrl, retinaModelUrl];
+      let loaded = 0;
 
-    function initXR() {
-      xrButton = new WebXRButton({
-        onRequestSession: onRequestSession,
-        onEndSession: onEndSession,
-        textEnterXRTitle: "INICIAR AR",
-        textXRNotFoundTitle: "NO SE ENCUENTRA AR",
-        textExitXRTitle: "SALIR DE AR"
+      let modelPromises = models.map(async (url) => {
+        let model = await Gltf2Node.load(url);
+        loaded++;
+        progressBar.style.width = `${(loaded / models.length) * 100}%`;
+        return model;
       });
-      document.querySelector('header').appendChild(xrButton.domElement);
 
-      if (navigator.xr) {
-        navigator.xr.isSessionSupported('immersive-ar')
-          .then(supported => {
-            xrButton.enabled = supported;
-          })
-          .catch(error => console.error('Error checking XR support:', error));
-      }
-    }
-
-    function loadResources() {
-      return Promise.all([
-        Gltf2Node.load(apeModelUrl),
-        Gltf2Node.load(retinaModelUrl)
-      ]);
-    }
-
-    async function initScene() {
-      await loadResources();
-
-      ape = new Gltf2Node({ url: apeModelUrl });
+      [ape, reticleNode] = await Promise.all(modelPromises);
       ape.visible = false;
       arObject.addNode(ape);
-
-      reticleNode = new Gltf2Node({ url: retinaModelUrl });
       reticleNode.visible = false;
       scene.addNode(reticleNode);
+
+      document.getElementById('loadingScreen').style.display = 'none';
     }
 
-    function initFPSCounter() {
-      fpsCounter = document.getElementById('fpsCounter');
-    }
-
-    function addARObjectAt(matrix) {
-      let newApe = arObject.clone();
-      newApe.visible = true;
-      newApe.matrix = matrix; 
-      vec3.set(newApe.scale, 0.5, 0.5, 0.5);
-      scene.addNode(newApe);
-      apes.push(newApe);
-
-      // Iniciar la animación del mono si tiene animaciones
-      if (ape.animations && ape.animations.length > 0) {
-        newApe.playAnimation(ape.animations[0]); // Reproducir la primera animación
-      }
-
-      if (apes.length > MAX_APES) {
-        let oldApe = apes.shift();
-        scene.removeNode(oldApe);
-      }
-    }
-
-    function onSelect(event) {
-      if (xrHitTestSource && reticleNode.visible) {
-        addARObjectAt(reticleNode.matrix);
-      }
-    }
-
-    function onXRFrame(t, frame) {
-      let session = frame.session;
-      let pose = frame.getViewerPose(xrRefSpace);
-      reticleNode.visible = false;
-
-      if (xrHitTestSource && pose) {
-        let hitTestResults = frame.getHitTestResults(xrHitTestSource);
-        if (hitTestResults.length > 0) {
-          let hitPose = hitTestResults[0].getPose(xrRefSpace);
-          reticleNode.visible = true;
-          reticleNode.matrix = hitPose.transform.matrix;
-        }
-      }
-
-      scene.startFrame();
-      session.requestAnimationFrame(onXRFrame);
-      scene.drawXRFrame(frame, pose);
-      scene.endFrame();
-
-      // Calcular y mostrar FPS
-      let currentTime = performance.now();
-      let fps = Math.round(1000 / (currentTime - lastFrameTime));
-      lastFrameTime = currentTime;
-
-      if (!loadingComplete) {
-        return; // No mostrar el contador de FPS si aún no se ha completado la carga
-      }
-
-      // Mostrar u ocultar el contador de FPS según la variable
-      if (isFpsVisible) {
-        fpsCounter.innerText = `FPS: ${fps}`;
-        fpsCounter.style.display = 'block'; // Asegúrate de que esté visible
-      } else {
-        fpsCounter.style.display = 'none'; // Ocultar el contador
-      }
-    }
-
-    let loadingComplete = false;
-
-    function startApp() {
+    async function startApp() {
+      await preloadModels();
       initXR();
-      loadResources().then(() => {
-        initScene().then(() => {
-          initFPSCounter();
-          if (navigator.xr.isSessionSupported('immersive-ar')) {
-            navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-              .then(session => {
-                onSessionStarted(session);
-              });
-          }
-        });
-      }).catch(error => console.error('Error loading resources:', error));
-    }
-
-    function onSessionStarted(session) {
-      session.addEventListener('end', onSessionEnded);
-      session.addEventListener('select', onSelect);
-
-      if (!gl) {
-        gl = createWebGLContext({ xrCompatible: true });
-        renderer = new Renderer(gl);
-        scene.setRenderer(renderer);
-      }
-
-      session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
-
-      session.requestReferenceSpace('viewer').then((refSpace) => {
-        xrViewerSpace = refSpace;
-        session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
-          xrHitTestSource = hitTestSource;
-        });
-      });
-
-      session.requestReferenceSpace('local').then((refSpace) => {
-        xrRefSpace = refSpace;
-        session.requestAnimationFrame(onXRFrame);
-        loadingComplete = true; // Indicar que la carga ha terminado
-      });
-    }
-
-    function onEndSession(session) {
-      xrHitTestSource.cancel();
-      xrHitTestSource = null;
-      session.end();
-      loadingComplete = false; // Reiniciar el estado de carga al finalizar la sesión
-    }
-
-    function onSessionEnded(event) {
-      xrButton.setSession(null);
-      loadingComplete = false; // Reiniciar el estado de carga al finalizar la sesión
+      navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
+        .then(onSessionStarted);
     }
 
     startApp();
