@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset='utf-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
@@ -15,15 +15,14 @@
   <header>
     <details open>
       <summary>Monkey Hit Test</summary>
-      <p>This sample demonstrates the use of hit testing to place virtual apes on real-world surfaces.
-        <a class="back" href="./">Back</a>
+      <p>
+        Este ejemplo muestra el uso de hit testing para colocar simios virtuales sobre superficies del mundo real.
+        <a class="back" href="./">Volver</a>
       </p>
     </details>
-    <!-- Placeholder for loading indicator -->
-    <div id="loadingIndicator" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; display: none;">Loading...</div>
-    <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
   </header>
-
+  <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
+  
   <script type="module">
     import { WebXRButton } from './js/util/webxr-button.js';
     import { Scene } from './js/render/scenes/scene.js';
@@ -50,143 +49,67 @@
     scene.addNode(arObject);
 
     // Cargar el modelo del mono con animaciones
+    let apeModelUrl = 'assets/Australophitecus3_anim.glb';
     let ape = null;
-    const apeUrl = 'assets/Australophitecus3.glb';
 
-    // Cargar la retícula (reticle)
-    const retinaUrl = 'assets/reticle.gltf';
+    // Modelo de retículo
+    const retinaModelUrl = 'assets/reticle.gltf';
+    let reticleNode = new Gltf2Node({ url: retinaModelUrl });
+    reticleNode.visible = false;
+    scene.addNode(reticleNode);
 
-    // Contador de FPS y variable para controlar la visibilidad del contador
+    let shadow = new DropShadowNode();
+    vec3.set(shadow.scale, 0.15, 0.15, 0.15);
+    arObject.addNode(shadow);
+
+    const MAX_APES = 30;
+    let apes = [];
     let lastFrameTime = performance.now();
     let fpsCounter; // Declarar aquí, pero inicializar después
     let isFpsVisible = true; // Variable para controlar la visibilidad del FPS
 
-    const MAX_APES = 30;
-    let apes = [];
-    let loadingComplete = false;
+    scene.clear = false;
 
     function initXR() {
       xrButton = new WebXRButton({
         onRequestSession: onRequestSession,
         onEndSession: onEndSession,
-        textEnterXRTitle: "START AR",
-        textXRNotFoundTitle: "AR NOT FOUND",
-        textExitXRTitle: "EXIT  AR",
+        textEnterXRTitle: "INICIAR AR",
+        textXRNotFoundTitle: "NO SE ENCUENTRA AR",
+        textExitXRTitle: "SALIR DE AR"
       });
       document.querySelector('header').appendChild(xrButton.domElement);
 
-      // Inicializar fpsCounter después de que se haya agregado al DOM
-      fpsCounter = document.getElementById('fpsCounter');
-
       if (navigator.xr) {
         navigator.xr.isSessionSupported('immersive-ar')
-                      .then((supported) => {
+          .then(supported => {
             xrButton.enabled = supported;
-          });
+          })
+          .catch(error => console.error('Error checking XR support:', error));
       }
-
-      // Cargar los modelos y la retícula antes de iniciar la sesión XR
-      loadModelsAndReticle().then(() => {
-        initLoadingIndicator(false);
-        initXRSession();
-      });
     }
 
-    function loadModelsAndReticle() {
+    function loadResources() {
       return Promise.all([
-        loadModel(apeUrl),
-        loadModel(retinaUrl)
-      ]).then((results) => {
-        ape = results[0];
-        const retina = results[1];
-        arObject.addNode(new Gltf2Node({ url: retina }));
-        reticleNode = retina;
-        return true; // Indicar que la carga está completa
-      }).catch((error) => {
-        console.error('Error loading models:', error);
-        initLoadingIndicator(true); // Mostrar mensaje de error
-        return false;
-      });
+        Gltf2Node.load(apeModelUrl),
+        Gltf2Node.load(retinaModelUrl)
+      ]);
     }
 
-    function loadModel(url) {
-      return new Promise((resolve, reject) => {
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.load(url, (gltf) => {
-          resolve(gltf.scene);
-        }, undefined, (error) => {
-          reject(error);
-        });
-      });
+    async function initScene() {
+      await loadResources();
+
+      ape = new Gltf2Node({ url: apeModelUrl });
+      ape.visible = false;
+      arObject.addNode(ape);
+
+      reticleNode = new Gltf2Node({ url: retinaModelUrl });
+      reticleNode.visible = false;
+      scene.addNode(reticleNode);
     }
 
-    function initLoadingIndicator(isFailed) {
-      const loadingIndicator = document.getElementById('loadingIndicator');
-      if (isFailed) {
-        loadingIndicator.innerText = 'Error loading models. Please try again.';
-      } else {
-        loadingIndicator.innerText = 'Loading...';
-      }
-      loadingIndicator.style.display = isFpsVisible ? 'block' : 'none';
-    }
-
-    function initXRSession() {
-      return new Promise((resolve, reject) => {
-        xrButton.onRequestSession = (session) => {
-          onSessionStarted(session);
-          resolve(true);
-        };
-
-        xrButton.onEndSession = () => {
-          onEndSession(session);
-          reject();
-        };
-      });
-    }
-
-    function onRequestSession() {
-      return navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-                         .then((session) => {
-            xrButton.setSession(session);
-            onSessionStarted(session);
-          });
-    }
-
-    function onSessionStarted(session) {
-      session.addEventListener('end', onSessionEnded);
-      session.addEventListener('select', onSelect);
-
-      if (!gl) {
-        gl = createWebGLContext({ xrCompatible: true });
-        renderer = new Renderer(gl);
-        scene.setRenderer(renderer);
-      }
-
-      session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
-
-      session.requestReferenceSpace('viewer').then((refSpace) => {
-        xrViewerSpace = refSpace;
-        session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
-          xrHitTestSource = hitTestSource;
-        });
-      });
-
-      session.requestReferenceSpace('local').then((refSpace) => {
-        xrRefSpace = refSpace;
-        session.requestAnimationFrame(onXRFrame);
-      });
-
-      loadingComplete = true; // Indicar que la experiencia está habilitada
-    }
-
-    function onEndSession(session) {
-      xrHitTestSource.cancel();
-      xrHitTestSource = null;
-      session.end();
-    }
-
-    function onSessionEnded(event) {
-      xrButton.setSession(null);
+    function initFPSCounter() {
+      fpsCounter = document.getElementById('fpsCounter');
     }
 
     function addARObjectAt(matrix) {
@@ -251,8 +174,62 @@
       }
     }
 
-    // Start the XR application.
-    initXR();
+    let loadingComplete = false;
+
+    function startApp() {
+      initXR();
+      loadResources().then(() => {
+        initScene().then(() => {
+          initFPSCounter();
+          if (navigator.xr.isSessionSupported('immersive-ar')) {
+            navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
+              .then(session => {
+                onSessionStarted(session);
+              });
+          }
+        });
+      }).catch(error => console.error('Error loading resources:', error));
+    }
+
+    function onSessionStarted(session) {
+      session.addEventListener('end', onSessionEnded);
+      session.addEventListener('select', onSelect);
+
+      if (!gl) {
+        gl = createWebGLContext({ xrCompatible: true });
+        renderer = new Renderer(gl);
+        scene.setRenderer(renderer);
+      }
+
+      session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+      session.requestReferenceSpace('viewer').then((refSpace) => {
+        xrViewerSpace = refSpace;
+        session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
+          xrHitTestSource = hitTestSource;
+        });
+      });
+
+      session.requestReferenceSpace('local').then((refSpace) => {
+        xrRefSpace = refSpace;
+        session.requestAnimationFrame(onXRFrame);
+        loadingComplete = true; // Indicar que la carga ha terminado
+      });
+    }
+
+    function onEndSession(session) {
+      xrHitTestSource.cancel();
+      xrHitTestSource = null;
+      session.end();
+      loadingComplete = false; // Reiniciar el estado de carga al finalizar la sesión
+    }
+
+    function onSessionEnded(event) {
+      xrButton.setSession(null);
+      loadingComplete = false; // Reiniciar el estado de carga al finalizar la sesión
+    }
+
+    startApp();
   </script>
 </body>
-</html> 
+</html>
