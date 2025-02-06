@@ -81,10 +81,24 @@
     arObject.visible = false;
     scene.addNode(arObject);
 
-    let apeModelUrl = 'assets/Australophitecus3_anim.glb';
+
+    //preload stuff
+
+  
+   /*  let apeModelUrl = 'assets/Australophitecus3_anim.glb';
     let ape = null;
     const retinaModelUrl = 'assets/reticle.gltf';
-    let reticleNode = null;
+    let reticleNode = null; */
+
+
+    let ape = new Gltf2Node({url: 'assets/Australophitecus3_anim.glb'});
+    arObject.addNode(flower);
+
+    let reticle = new Gltf2Node({url: 'assets/reticle.gltf'});
+    reticle.visible = false;
+    scene.addNode(reticle);
+
+
     let shadow = new DropShadowNode();
     vec3.set(shadow.scale, 0.15, 0.15, 0.15);
     arObject.addNode(shadow);
@@ -246,14 +260,14 @@
 
         scene.endFrame();
       }
-      
-    async function startApp() {
+      initXR();
+    /* async function startApp() {
       await preloadModels();
       initXR();
     }
 
     
-    startApp();
+    startApp(); */
   </script>
 </body>
 </html>
