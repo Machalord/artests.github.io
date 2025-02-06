@@ -132,6 +132,7 @@
     }
 
     function initXR() {
+      document.getElementById('loadingScreen').style.display = 'none';
       xrButton = new WebXRButton({
         onRequestSession: onRequestSession,
         onEndSession: onEndSession,
