@@ -1,274 +1,35 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset='utf-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
-  <meta name='mobile-web-app-capable' content='yes'>
-  <meta name='apple-mobile-web-app-capable' content='yes'>
-  <link rel='icon' type='image/png' sizes='32x32' href='favicon-32x32.png'>
-  <link rel='icon' type='image/png' sizes='96x96' href='favicon-96x96.png'>
-  <link rel='stylesheet' href='css/common.css'>
-
-  <title>Monkey Hit Test</title>
-  <style>
-    #loadingScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: black;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    #progressBarContainer {
-      width: 80%;
-      background: gray;
-      border-radius: 5px;
-      overflow: hidden;
-      margin-top: 10px;
-    }
-    #progressBar {
-      width: 0%;
-      height: 20px;
-      background: lime;
-    }
-  </style>
-</head>
-<body>
-  <div id="loadingScreen">
-    <p>Cargando modelos...</p>
-    <div id="progressBarContainer">
-      <div id="progressBar"></div>
-    </div>
-  </div>
-  
-  <header>
-    <details open>
-      <summary>Monkey Hit Test</summary>
-      <p>
-        Este ejemplo muestra el uso de hit testing para colocar simios virtuales sobre superficies del mundo real.
-        <a class="back" href="./">Volver</a>
-      </p>
-    </details> 
-  </header>
-  <div id="fpsCounter" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0, 0, 0, 0.5); padding: 5px; display: none;">FPS: 0</div>
-  
-  <script type="module">
-    import { WebXRButton } from './js/util/webxr-button.js';
-    import { Scene } from './js/render/scenes/scene.js';
-    import { Renderer, createWebGLContext } from './js/render/core/renderer.js';
-    import { Node } from './js/render/core/node.js';
-    import { Gltf2Node } from './js/render/nodes/gltf2.js';
-    import { DropShadowNode } from './js/render/nodes/drop-shadow.js';
-    import { vec3 } from './js/render/math/gl-matrix.js';
-
-    let xrButton = null;
-    let xrRefSpace = null;
-    let xrViewerSpace = null;
-    let xrHitTestSource = null;
-
-    let gl = null;
-    let renderer = null;
-    let scene = new Scene();
-    scene.enableStats(false);
-
-    let arObject = new Node();
-    arObject.visible = false;
-    scene.addNode(arObject);
-
-
-    //preload stuff
-
-  
-   /*  let apeModelUrl = 'assets/Australophitecus3_anim.glb';
-    let ape = null;
-    const retinaModelUrl = 'assets/reticle.gltf';
-    let reticleNode = null; */
-
-
-    let ape = new Gltf2Node({url: 'assets/Australophitecus3_anim.glb'});
-    arObject.addNode(ape);
-
-    let reticle = new Gltf2Node({url: 'assets/reticle.gltf'});
-    reticle.visible = false;
-    scene.addNode(reticle);
-
-
-    let shadow = new DropShadowNode();
-    vec3.set(shadow.scale, 0.15, 0.15, 0.15);
-    arObject.addNode(shadow);
-
-    const MAX_APES = 30;
-      let apes = [];
-
-      scene.clear = false;
-
-    async function preloadModels() {
-
-      let progressBar = document.getElementById('progressBar');
-      let loaded = 0;
-      const totalModels = 2;
-
-      ape = new Gltf2Node({ url: apeModelUrl });
-      ape.visible = false;
-
-      arObject.addNode(ape);
-
-      loaded++;
-      progressBar.style.width = `${(loaded / totalModels) * 100}%`;
-
-      reticleNode = new Gltf2Node({ url: retinaModelUrl });
-      reticleNode.visible = false;
-      scene.addNode(reticleNode);
-      loaded++;
-      progressBar.style.width = `${(loaded / totalModels) * 100}%`;
-
-      document.getElementById('loadingScreen').style.display = 'none';
-    }
-
-    function initXR() {
-      document.getElementById('loadingScreen').style.display = 'none';
-      xrButton = new WebXRButton({
-        onRequestSession: onRequestSession,
-        onEndSession: onEndSession,
-        textEnterXRTitle: "INICIAR AR",
-        textXRNotFoundTitle: "NO SE ENCUENTRA AR",
-        textExitXRTitle: "SALIR DE AR"
-      });
-      document.querySelector('header').appendChild(xrButton.domElement);
-    }
-
-    if (navigator.xr) {
-          navigator.xr.isSessionSupported('immersive-ar')
-                      .then((supported) => {
-            xrButton.enabled = supported;
-          });
-        }
-
-    function onRequestSession() {
-      navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local', 'hit-test'] })
-        .then(session => {
-          xrButton.setSession(session);
-          onSessionStarted(session); 
-          }); 
-    }
-
-    function onSessionStarted(session) {
-        session.addEventListener('end', onSessionEnded);
-        session.addEventListener('select', onSelect);
-
-        if (!gl) {
-          gl = createWebGLContext({
-            xrCompatible: true
-          });
-
-          renderer = new Renderer(gl);
-
-          scene.setRenderer(renderer);
-        }
-
-        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
-
-        // In this sample we want to cast a ray straight out from the viewer's
-        // position and render a reticle where it intersects with a real world
-        // surface. To do this we first get the viewer space, then create a
-        // hitTestSource that tracks it.
-        session.requestReferenceSpace('viewer').then((refSpace) => {
-          xrViewerSpace = refSpace;
-          session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
-            xrHitTestSource = hitTestSource;
-          });
-        });
-
-        session.requestReferenceSpace('local').then((refSpace) => {
-          xrRefSpace = refSpace;
-
-          session.requestAnimationFrame(onXRFrame);
-        });
-      }
-
+<html>
+  <head>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.1/dist/mindar-image-aframe.prod.js"></script>
+  </head>
+  <body>
+    <a-scene mindar-image embedded arjs>
+      <!-- Cámara -->
+      <a-camera position="0 0 0" look-controls-enabled="false"></a-camera>
+      
+      <!-- Retícula -->
+      <a-entity id="reticle" geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.1" material="color: red; opacity: 0.7" visible="false"></a-entity>
+      
+      <!-- Modelo 3D -->
+      <a-entity id="model" gltf-model="assets/Australophitecus3.glb" scale="0.1 0.1 0.1" animation-mixer="clip: *" visible="false"></a-entity>
+    </a-scene>
     
-
-    function onEndSession(session) {
-        xrHitTestSource.cancel();
-        xrHitTestSource = null;
-        session.end();
-      }
-
-      function onSessionEnded(event) {
-        xrButton.setSession(null);
-      }
-
-    function addARObjectAt(matrix) {
-      let newApe = arObject.clone();
-      newApe.visible = true;
-      newApe.matrix = matrix;
-      vec3.set(newApe.scale, 0.5, 0.5, 0.5);
-      scene.addNode(newApe);
-
-      apes.push(newApe);
-
-        // For performance reasons if we add too many objects start
-        // removing the oldest ones to keep the scene complexity
-        // from growing too much.
-        if (apes.length > MAX_APES) {
-          let oldApe = apes.shift();
-          scene.removeNode(oldApe);
-        }
-    } 
-
-    let rayOrigin = vec3.create();
-    let rayDirection = vec3.create();
-
-      function onSelect(event) {
-        if (reticle.visible) {
-          // The reticle should already be positioned at the latest hit point, 
-          // so we can just use it's matrix to save an unnecessary call to 
-          // event.frame.getHitTestResults.
-
-          addARObjectAt(reticle.matrix);
-        }
-      }
-
-       // Called every time a XRSession requests that a new frame be drawn.
-       function onXRFrame(t, frame) {
-        let session = frame.session;
-        let pose = frame.getViewerPose(xrRefSpace);
-
-        reticle.visible = false;
-
-        // If we have a hit test source, get its results for the frame
-        // and use the pose to display a reticle in the scene.
-        if (xrHitTestSource && pose) {
-          let hitTestResults = frame.getHitTestResults(xrHitTestSource);
-          if (hitTestResults.length > 0) {
-            let pose = hitTestResults[0].getPose(xrRefSpace);
-            reticle.visible = true;
-            reticle.matrix = pose.transform.matrix;
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const sceneEl = document.querySelector("a-scene");
+        const reticle = document.querySelector("#reticle");
+        const model = document.querySelector("#model");
+        
+        sceneEl.addEventListener("click", (event) => {
+          if (reticle.getAttribute("visible")) {
+            model.setAttribute("position", reticle.getAttribute("position"));
+            model.setAttribute("visible", "true");
+            model.setAttribute("animation-mixer", "clip: *");
           }
-        }
-
-        scene.startFrame();
-
-        session.requestAnimationFrame(onXRFrame);
-
-        scene.drawXRFrame(frame, pose);
-
-        scene.endFrame();
-      }
-      initXR();
-    /* async function startApp() {
-      await preloadModels();
-      initXR();
-    }
-
-    
-    startApp(); */
-  </script>
-</body>
+        });
+      });
+    </script>
+  </body>
 </html>
