@@ -62,7 +62,7 @@
 				reticle.visible = false;
 				scene.add( reticle );
 
-				// Load GLTF Model from URL
+				// Load GLTF Model from the local "assets" folder
 				const loader = new GLTFLoader();
 				loader.load('assets/ape.glb', function (gltf) {
 					model = gltf.scene;
