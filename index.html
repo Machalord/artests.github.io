@@ -12,15 +12,15 @@
       <!-- Retícula -->
       <a-entity id="reticle" geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.1" material="color: red; opacity: 0.7" visible="false"></a-entity>
       
-      <!-- Modelo 3D -->
-      <a-entity id="model" gltf-model="assets/ape.glb" scale="0.1 0.1 0.1" animation-mixer="clip: *" visible="false"></a-entity>
+      <a-box id="box" position='0 0.5 0' material='opacity: 0.5;'></a-box>      <!-- Modelo 3D -->
+      <!-- <a-entity id="model" gltf-model="assets/ape.glb" scale="0.1 0.1 0.1" animation-mixer="clip: *" visible="false"></a-entity> -->
     </a-scene>
     
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const sceneEl = document.querySelector("a-scene");
         const reticle = document.querySelector("#reticle");
-        const model = document.querySelector("#model");
+        const model = document.querySelector("#box");
         
         sceneEl.addEventListener("click", (event) => {
           if (reticle.getAttribute("visible")) {
