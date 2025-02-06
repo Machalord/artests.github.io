@@ -1,41 +1,167 @@
-!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ar.js@1.7.2/aframe/build/aframe-ar.min.js"></script>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+    <link rel='stylesheet' href='css/common.css'>
+    <title>Hit Test</title>
   </head>
-  <body style="margin: 0; overflow: hidden;">
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false">
-      <!-- Cámara -->
-      <a-camera position="0 1.6 0"></a-camera>
-      
-      <!-- Retícula -->
-      <a-entity id="reticle" geometry="primitive: ring; radiusInner: 0.05; radiusOuter: 0.1" material="color: red; opacity: 0.7" visible="false"></a-entity>
-      
-      <!-- Modelo 3D -->
-      <a-entity id="model" gltf-model="assets/ape.glb" scale="0.1 0.1 0.1" animation-mixer visible="false"></a-entity>
-    </a-scene>
-    
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const sceneEl = document.querySelector("a-scene");
-        const reticle = document.querySelector("#reticle");
-        const model = document.querySelector("#model");
+  <body>
+    <header>
+      <details open>
+        <summary>Hit Test</summary>
+        <p>
+          This sample demonstrates the use of hit testing to place virtual objects on real-world surfaces.
+          <a class="back" href="./">Back</a>
+        </p>
+      </details>
+    </header>
+    <script type="module">
+      import {WebXRButton} from './js/util/webxr-button.js';
+      import {Scene} from './js/render/scenes/scene.js';
+      import {Renderer, createWebGLContext} from './js/render/core/renderer.js';
+      import {Node} from './js/render/core/node.js';
+      import {Gltf2Node} from './js/render/nodes/gltf2.js';
+      import {vec3} from './js/render/math/gl-matrix.js';
+      import {DropShadowNode} from './js/render/nodes/drop-shadow.js';
 
-        // Detectar toque en la pantalla
-        sceneEl.addEventListener("click", (event) => {
-          const touchPoint = event.detail.intersection;
-          if (touchPoint) {
-            const { x, y, z } = touchPoint.point;
-            reticle.setAttribute("position", `${x} ${y} ${z}`);
-            reticle.setAttribute("visible", "true");
-            
-            model.setAttribute("position", `${x} ${y} ${z}`);
-            model.setAttribute("visible", "true");
-            model.setAttribute("animation-mixer", "clip: *");
-          }
+      let xrButton = null;
+      let xrRefSpace = null;
+      let xrViewerSpace = null;
+      let xrHitTestSource = null;
+      let gl = null;
+      let renderer = null;
+      let scene = new Scene();
+      scene.enableStats(false);
+
+      let arObject = new Node();
+      arObject.visible = false;
+      scene.addNode(arObject);
+
+      let apeModel = new Gltf2Node({url: 'assets/ape.glb'});
+      arObject.addNode(apeModel);
+
+      let reticle = new Gltf2Node({url: 'assets/reticle.gltf'});
+      reticle.visible = false;
+      scene.addNode(reticle);
+
+      let shadow = new DropShadowNode();
+      vec3.set(shadow.scale, 0.15, 0.15, 0.15);
+      arObject.addNode(shadow);
+
+      const MAX_OBJECTS = 30;
+      let objects = [];
+      scene.clear = false;
+
+      function initXR() {
+        xrButton = new WebXRButton({
+          onRequestSession: onRequestSession,
+          onEndSession: onEndSession,
+          textEnterXRTitle: "START AR",
+          textXRNotFoundTitle: "AR NOT FOUND",
+          textExitXRTitle: "EXIT AR",
         });
+        document.querySelector('header').appendChild(xrButton.domElement);
+
+        if (navigator.xr) {
+          navigator.xr.isSessionSupported('immersive-ar')
+                      .then((supported) => {
+            xrButton.enabled = supported;
+          });
+        }
+      }
+
+      function onRequestSession() {
+        return navigator.xr.requestSession('immersive-ar', {requiredFeatures: ['local', 'hit-test']})
+                           .then((session) => {
+          xrButton.setSession(session);
+          onSessionStarted(session);
+        });
+      }
+
+      function onSessionStarted(session) {
+        session.addEventListener('end', onSessionEnded);
+        session.addEventListener('select', onSelect);
+
+        if (!gl) {
+          gl = createWebGLContext({xrCompatible: true});
+          renderer = new Renderer(gl);
+          scene.setRenderer(renderer);
+        }
+
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+        session.requestReferenceSpace('viewer').then((refSpace) => {
+          xrViewerSpace = refSpace;
+          session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
+            xrHitTestSource = hitTestSource;
+          });
+        });
+
+        session.requestReferenceSpace('local').then((refSpace) => {
+          xrRefSpace = refSpace;
+          session.requestAnimationFrame(onXRFrame);
+        });
+      }
+
+      function onEndSession(session) {
+        xrHitTestSource.cancel();
+        xrHitTestSource = null;
+        session.end();
+      }
+
+      function onSessionEnded(event) {
+        xrButton.setSession(null);
+      }
+
+      function addARObjectAt(matrix) {
+        let newObject = arObject.clone();
+        newObject.visible = true;
+        newObject.matrix = matrix;
+        scene.addNode(newObject);
+        objects.push(newObject);
+
+        if (objects.length > MAX_OBJECTS) {
+          let oldObject = objects.shift();
+          scene.removeNode(oldObject);
+        }
+      }
+
+      function onSelect(event) {
+        if (reticle.visible) {
+          addARObjectAt(reticle.matrix);
+        }
+      }
+
+      function onXRFrame(t, frame) {
+        let session = frame.session;
+        let pose = frame.getViewerPose(xrRefSpace);
+        reticle.visible = false;
+
+        if (xrHitTestSource && pose) {
+          let hitTestResults = frame.getHitTestResults(xrHitTestSource);
+          if (hitTestResults.length > 0) {
+            let pose = hitTestResults[0].getPose(xrRefSpace);
+            reticle.visible = true;
+            reticle.matrix = pose.transform.matrix;
+          }
+        }
+
+        scene.startFrame();
+        session.requestAnimationFrame(onXRFrame);
+        scene.drawXRFrame(frame, pose);
+        scene.endFrame();
+      }
+
+      apeModel.addEventListener('load', () => {
+        let animations = apeModel.animations;
+        if (animations && animations.length > 0) {
+          apeModel.playAnimation(animations[0], true);
+        }
       });
+
+      initXR();
     </script>
   </body>
 </html>
