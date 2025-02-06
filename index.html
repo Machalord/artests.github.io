@@ -4,6 +4,7 @@
 		<title>three.js ar - hit test</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 	<body>
 
@@ -11,21 +12,12 @@
 			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - hit test<br/>(Chrome Android 81+)
 		</div>
 
-		<script type="importmap">
-			{
-				"imports": {
-					"three": "../build/three.module.js",
-					"three/addons/": "./jsm/"
-				}
-			}
-		</script>
-
 		<script type="module">
-
-			import * as THREE from 'three';
-			import { ARButton } from 'three/addons/webxr/ARButton.js';
-			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-			import { AnimationMixer } from 'three';
+			// Cargar Three.js y complementos desde un CDN
+			import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.130.0/build/three.module.js';
+			import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/webxr/ARButton.js';
+			import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/loaders/GLTFLoader.js';
+			import { AnimationMixer } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/animation/AnimationMixer.js';
 
 			let container;
 			let camera, scene, renderer;
@@ -72,7 +64,7 @@
 				reticle.visible = false;
 				scene.add( reticle );
 
-				// Load GLTF Model
+				// Load GLTF Model from URL
 				const loader = new GLTFLoader();
 				loader.load('assets/ape.glb', function (gltf) {
 					model = gltf.scene;
