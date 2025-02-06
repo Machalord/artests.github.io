@@ -11,9 +11,17 @@
 			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - hit test<br/>(Chrome Android 81+)
 		</div>
 
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.130.0/build/three.module.js", 
+        }
+      }
+    </script>
+
 		<script type="module">
 			// Cargar Three.js y complementos desde un CDN
-			import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.130.0/build/three.module.js';
+      import * as THREE from 'three'; 
 			import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/webxr/ARButton.js';
 			import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/loaders/GLTFLoader.js';
 
