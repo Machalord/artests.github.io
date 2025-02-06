@@ -89,14 +89,22 @@
     vec3.set(shadow.scale, 0.15, 0.15, 0.15);
     arObject.addNode(shadow);
 
+    const MAX_APES = 30;
+      let apes = [];
+
+      scene.clear = false;
+
     async function preloadModels() {
+
       let progressBar = document.getElementById('progressBar');
       let loaded = 0;
       const totalModels = 2;
 
       ape = new Gltf2Node({ url: apeModelUrl });
       ape.visible = false;
+
       arObject.addNode(ape);
+      
       loaded++;
       progressBar.style.width = `${(loaded / totalModels) * 100}%`;
 
@@ -132,7 +140,6 @@
         .then(session => {
           xrButton.setSession(session);
           onSessionStarted(session); 
-            session.requestAnimationFrame(onXRFrame);
           }); 
     }
 
@@ -188,6 +195,16 @@
       newApe.matrix = matrix;
       vec3.set(newApe.scale, 0.5, 0.5, 0.5);
       scene.addNode(newApe);
+
+      apes.push(newFlower);
+
+        // For performance reasons if we add too many objects start
+        // removing the oldest ones to keep the scene complexity
+        // from growing too much.
+        if (apes.length > MAX_APES) {
+          let oldApe = apes.shift();
+          scene.removeNode(oldApe);
+        }
     } 
 
     let rayOrigin = vec3.create();
@@ -229,12 +246,13 @@
 
         scene.endFrame();
       }
-
+      
     async function startApp() {
       await preloadModels();
       initXR();
     }
 
+    
     startApp();
   </script>
 </body>
