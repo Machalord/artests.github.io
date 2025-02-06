@@ -5,8 +5,15 @@
     <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
     <meta name='mobile-web-app-capable' content='yes'>
     <meta name='apple-mobile-web-app-capable' content='yes'>
+    <link rel='icon' type='image/png' sizes='32x32' href='favicon-32x32.png'>
+    <link rel='icon' type='image/png' sizes='96x96' href='favicon-96x96.png'>
     <link rel='stylesheet' href='css/common.css'>
     <title>Hit Test</title>
+
+    <!-- Incluir Three.js desde un CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Incluir GLTFLoader desde un CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
   </head>
   <body>
     <header>
@@ -24,9 +31,11 @@
       import {Renderer, createWebGLContext} from './js/render/core/renderer.js';
       import {Node} from './js/render/core/node.js';
       import {Gltf2Node} from './js/render/nodes/gltf2.js';
-      import {vec3} from './js/render/math/gl-matrix.js';
       import {DropShadowNode} from './js/render/nodes/drop-shadow.js';
+      import {vec3} from './js/render/math/gl-matrix.js';
+      import {Ray} from './js/render/math/ray.js';
 
+      // Variables necesarias
       let xrButton = null;
       let xrRefSpace = null;
       let xrViewerSpace = null;
@@ -40,9 +49,6 @@
       arObject.visible = false;
       scene.addNode(arObject);
 
-      let apeModel = new Gltf2Node({url: 'assets/ape.glb'});
-      arObject.addNode(apeModel);
-
       let reticle = new Gltf2Node({url: 'assets/reticle.gltf'});
       reticle.visible = false;
       scene.addNode(reticle);
@@ -51,9 +57,13 @@
       vec3.set(shadow.scale, 0.15, 0.15, 0.15);
       arObject.addNode(shadow);
 
-      const MAX_OBJECTS = 30;
-      let objects = [];
+      const MAX_FLOWERS = 30;
+      let flowers = [];
       scene.clear = false;
+
+      // Variables de Three.js
+      let apeModel = null;
+      let mixer = null;
 
       function initXR() {
         xrButton = new WebXRButton({
@@ -92,6 +102,7 @@
         }
 
         session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
         session.requestReferenceSpace('viewer').then((refSpace) => {
           xrViewerSpace = refSpace;
           session.requestHitTestSource({ space: xrViewerSpace }).then((hitTestSource) => {
@@ -102,6 +113,27 @@
         session.requestReferenceSpace('local').then((refSpace) => {
           xrRefSpace = refSpace;
           session.requestAnimationFrame(onXRFrame);
+        });
+
+        // Cargar el modelo ape.glb
+        loadApeModel();
+      }
+
+      function loadApeModel() {
+        const loader = new THREE.GLTFLoader();
+        loader.load('assets/ape.glb', (gltf) => {
+          apeModel = gltf.scene;
+          apeModel.scale.set(0.2, 0.2, 0.2); // Ajusta el tamaño
+          apeModel.position.set(0, 0, 0);
+          scene.addNode(apeModel);
+
+          // Configurar animación
+          if (gltf.animations && gltf.animations.length) {
+            mixer = new THREE.AnimationMixer(apeModel);
+            gltf.animations.forEach((clip) => {
+              mixer.clipAction(clip).play();
+            });
+          }
         });
       }
 
@@ -116,15 +148,15 @@
       }
 
       function addARObjectAt(matrix) {
-        let newObject = arObject.clone();
-        newObject.visible = true;
-        newObject.matrix = matrix;
-        scene.addNode(newObject);
-        objects.push(newObject);
+        let newFlower = arObject.clone();
+        newFlower.visible = true;
+        newFlower.matrix = matrix;
+        scene.addNode(newFlower);
+        flowers.push(newFlower);
 
-        if (objects.length > MAX_OBJECTS) {
-          let oldObject = objects.shift();
-          scene.removeNode(oldObject);
+        if (flowers.length > MAX_FLOWERS) {
+          let oldFlower = flowers.shift();
+          scene.removeNode(oldFlower);
         }
       }
 
@@ -137,29 +169,26 @@
       function onXRFrame(t, frame) {
         let session = frame.session;
         let pose = frame.getViewerPose(xrRefSpace);
+
         reticle.visible = false;
 
         if (xrHitTestSource && pose) {
           let hitTestResults = frame.getHitTestResults(xrHitTestSource);
           if (hitTestResults.length > 0) {
-            let pose = hitTestResults[0].getPose(xrRefSpace);
+            let hitPose = hitTestResults[0].getPose(xrRefSpace);
             reticle.visible = true;
-            reticle.matrix = pose.transform.matrix;
+            reticle.matrix = hitPose.transform.matrix;
           }
         }
 
         scene.startFrame();
+        if (mixer) {
+          mixer.update(t / 1000); // Actualizar la animación
+        }
         session.requestAnimationFrame(onXRFrame);
         scene.drawXRFrame(frame, pose);
         scene.endFrame();
       }
-
-      apeModel.addEventListener('load', () => {
-        let animations = apeModel.animations;
-        if (animations && animations.length > 0) {
-          apeModel.playAnimation(animations[0], true);
-        }
-      });
 
       initXR();
     </script>
