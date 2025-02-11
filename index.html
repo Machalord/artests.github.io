@@ -1,151 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<title>three.js ar - hit test</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-	</head>
-	<body>
+<head>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>AR GLTF Model</title>
+    <script src='js/three.js'></script>
+    <script src='js/GLTFLoader.js'></script>
+    <script src='jsartoolkit5/artoolkit.min.js'></script>
+    <script src='jsartoolkit5/artoolkit.api.js'></script>
+    <script src='threex/threex-artoolkitsource.js'></script>
+    <script src='threex/threex-artoolkitcontext.js'></script>
+    <script src='threex/threex-arbasecontrols.js'></script>
+    <script src='threex/threex-armarkercontrols.js'></script>
+</head>
+<body style='margin: 0; overflow: hidden;'>
+<script>
+let scene, camera, renderer, clock, deltaTime, totalTime;
+let arToolkitSource, arToolkitContext;
+let markerRoot;
+let mixer;
 
-		<div id="info">
-			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - hit test<br/>(Chrome Android 81+)
-		</div>
+initialize();
+animate();
 
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.130.0/build/three.module.js"
+function initialize() {
+    scene = new THREE.Scene();
+    let ambientLight = new THREE.AmbientLight(0xcccccc, 1.0);
+    scene.add(ambientLight);
+    
+    camera = new THREE.Camera();
+    scene.add(camera);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(640, 480);
+    document.body.appendChild(renderer.domElement);
+    
+    clock = new THREE.Clock();
+    deltaTime = 0;
+    totalTime = 0;
+
+    arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
+    function onResize() {
+        arToolkitSource.onResize();
+        arToolkitSource.copySizeTo(renderer.domElement);
+        if (arToolkitContext.arController !== null) {
+            arToolkitSource.copySizeTo(arToolkitContext.arController.canvas);
         }
-      }
-    </script>
+    }
+    arToolkitSource.init(() => onResize());
+    window.addEventListener('resize', onResize);
+    
+    arToolkitContext = new THREEx.ArToolkitContext({
+        cameraParametersUrl: 'data/camera_para.dat',
+        detectionMode: 'mono'
+    });
+    arToolkitContext.init(() => {
+        camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+    });
+    
+    markerRoot = new THREE.Group();
+    scene.add(markerRoot);
+    new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+        type: 'pattern', patternUrl: "data/hiro.patt"
+    });
+    
+    const loader = new THREE.GLTFLoader();
+    loader.load('assets/ape.glb', function (gltf) {
+        let model = gltf.scene;
+        model.scale.set(0.5, 0.5, 0.5);
+        markerRoot.add(model);
+        
+        if (gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(model);
+            let action = mixer.clipAction(gltf.animations[0]);
+            action.play();
+        }
+    });
+}
 
-		<script type="module">
-			// Cargar Three.js y complementos desde un CDN
-      import * as THREE from 'three'; 
-			import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/webxr/ARButton.js';
-			import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.130.0/examples/jsm/loaders/GLTFLoader.js';
+function update() {
+    if (arToolkitSource.ready !== false) {
+        arToolkitContext.update(arToolkitSource.domElement);
+    }
+    if (mixer) {
+        mixer.update(clock.getDelta());
+    }
+}
 
-			let container;
-			let camera, scene, renderer;
-			let controller;
+function render() {
+    renderer.render(scene, camera);
+}
 
-			let reticle;
-			let model, mixer;
-
-			let hitTestSource = null;
-			let hitTestSourceRequested = false;
-
-			init();
-
-			function init() {
-
-				container = document.createElement( 'div' );
-				document.body.appendChild( container );
-
-				scene = new THREE.Scene();
-
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
-
-				const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 3 );
-				light.position.set( 0.5, 1, 0.25 );
-				scene.add( light );
-
-				// Renderer
-				renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.setAnimationLoop( animate );
-				renderer.xr.enabled = true;
-				container.appendChild( renderer.domElement );
-
-				// AR Button
-				document.body.appendChild( ARButton.createButton( renderer, { requiredFeatures: [ 'hit-test' ] } ) );
-
-				// Reticle (to show position for model)
-				reticle = new THREE.Mesh(
-					new THREE.RingGeometry( 0.15, 0.2, 32 ).rotateX( - Math.PI / 2 ),
-					new THREE.MeshBasicMaterial()
-				);
-				reticle.matrixAutoUpdate = false;
-				reticle.visible = false;
-				scene.add( reticle );
-
-				// Load GLTF Model from the local "assets" folder
-				const loader = new GLTFLoader();
-				loader.load('assets/ape.glb', function (gltf) {
-					model = gltf.scene;
-					scene.add(model);
-
-					// Setup animation if available
-					mixer = new THREE.AnimationMixer(model);
-					gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
-				});
-
-				// Controller
-				controller = renderer.xr.getController( 0 );
-				controller.addEventListener( 'select', onSelect );
-				scene.add( controller );
-
-				window.addEventListener( 'resize', onWindowResize );
-
-			}
-
-			function onSelect() {
-				if ( reticle.visible && model ) {
-					const newModel = model.clone();
-					reticle.matrix.decompose( newModel.position, newModel.rotation, newModel.scale );
-					scene.add( newModel );
-				}
-			}
-
-			function onWindowResize() {
-				camera.aspect = window.innerWidth / window.innerHeight;
-				camera.updateProjectionMatrix();
-				renderer.setSize( window.innerWidth, window.innerHeight );
-			}
-
-			// Animation Loop
-			function animate( timestamp, frame ) {
-
-				if ( frame ) {
-					const referenceSpace = renderer.xr.getReferenceSpace();
-					const session = renderer.xr.getSession();
-
-					if ( hitTestSourceRequested === false ) {
-						session.requestReferenceSpace( 'viewer' ).then( function ( referenceSpace ) {
-							session.requestHitTestSource( { space: referenceSpace } ).then( function ( source ) {
-								hitTestSource = source;
-							} );
-						} );
-
-						session.addEventListener( 'end', function () {
-							hitTestSourceRequested = false;
-							hitTestSource = null;
-						} );
-
-						hitTestSourceRequested = true;
-					}
-
-					if ( hitTestSource ) {
-						const hitTestResults = frame.getHitTestResults( hitTestSource );
-						if ( hitTestResults.length ) {
-							const hit = hitTestResults[ 0 ];
-							reticle.visible = true;
-							reticle.matrix.fromArray( hit.getPose( referenceSpace ).transform.matrix );
-						} else {
-							reticle.visible = false;
-						}
-					}
-
-				}
-
-				// Update animation mixer
-				if (mixer) mixer.update(0.01);
-
-				renderer.render( scene, camera );
-
-			}
-
-		</script>
-	</body>
+function animate() {
+    requestAnimationFrame(animate);
+    update();
+    render();
+}
+</script>
+</body>
 </html>
